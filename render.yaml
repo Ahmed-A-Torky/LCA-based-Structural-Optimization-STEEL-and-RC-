@@ -1,0 +1,16 @@
+# One-click deploy config for Render.com
+# In Render: New + > Blueprint > connect the repo containing this file.
+services:
+  - type: web
+    name: structural-optimization-studio
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 1 --threads 8 --timeout 180 --bind 0.0.0.0:$PORT
+    envVars:
+      # Allow your Wix site to embed this app in an iframe.
+      # Replace with your real Wix domain, or use "*" to allow any site.
+      - key: EMBED_ALLOW
+        value: "*"
+      - key: MAX_RUNNING_JOBS
+        value: "6"

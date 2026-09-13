@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ meta.name }} — Optimization Studio</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="topbar">
+  <a class="brand" href="/">
+    <span class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#f4a43c" stroke-width="1.6">
+        <path d="M3 21 L12 3 L21 21 Z" stroke-linejoin="round"/>
+        <path d="M3 21 L12 12 L21 21" stroke-opacity="0.5"/>
+        <path d="M12 3 L12 12" stroke-opacity="0.5"/>
+      </svg>
+    </span>
+    <span class="tt"><b>Optimization Studio</b><span>Structural&nbsp;Benchmarks</span></span>
+  </a>
+  <a class="back" href="/">← All benchmarks</a>
+</div>
+
+<div class="wrap">
+  <div class="ws-head">
+    <div>
+      <div class="sub">{{ meta.kind }} · {{ 'CO&#8322; minimization' | safe if meta.family == 'co2' else ('AISC 360 \u00b7 mass minimization' if meta.family == 'member' else meta.family) }}</div>
+      <h1>{{ meta.name }}</h1>
+    </div>
+    <div class="refbox">
+      Reference optimum<b>{{ meta.ref_mass }} {{ meta.unit }}</b>
+      {{ meta.constraint }}
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- ============ control panel ============ -->
+    <div class="panel" id="panel">
+      <h4>GA parameters</h4>
+
+      <div class="field">
+        <label>Chromosomes <span class="val" id="popVal">80</span></label>
+        <input type="range" id="pop" min="20" max="300" step="10" value="80">
+        <div class="hint">Population size — candidates evaluated each generation.</div>
+      </div>
+
+      <div class="field">
+        <label>Generations <span class="val" id="genVal">80</span></label>
+        <input type="range" id="gen" min="20" max="400" step="10" value="80">
+        <div class="hint">Iterations of selection, crossover and mutation.</div>
+      </div>
+
+      <button class="adv-toggle" id="advToggle">
+        <span class="chev">▸</span> Advanced
+      </button>
+            {% if steel_routes %}
+      <div class="param" style="margin-bottom:14px">
+        <div class="p-head"><label for="steelRoute">{{ "Aluminium" if meta.material == "aluminium" else "Steel" }} production route</label></div>
+        <select id="steelRoute" class="route-sel">
+          {% for rk, r in steel_routes.items() %}
+          <option value="{{ rk }}" {% if rk == default_route %}selected{% endif %}>
+            {{ r.label }} — {{ r.co2 }} kg CO&#8322;/kg</option>
+          {% endfor %}
+        </select>
+        <div class="p-sub">Material carbon factor by production route. RC problems optimize CO&#8322; with it; steel and aluminium problems optimize mass and report the embodied carbon at the selected route.</div>
+      </div>
+      {% endif %}
+      {% if meta.family == 'member' %}
+      <div class="param" style="margin-bottom:14px">
+        <div class="p-head"><label>Design inputs</label></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label class="p-sub">M (kN&middot;m)<input type="number" id="dM" class="route-sel" value="100" min="1"></label>
+          <label class="p-sub">Span L (m)<input type="number" id="dL" class="route-sel" value="7" step="0.5" min="1"></label>
+          <label class="p-sub">Fy (MPa)<input type="number" id="dFy" class="route-sel" value="345" min="200" max="690"></label>
+          <label class="p-sub">Custom Lb (m)<input type="number" id="dLb" class="route-sel" value="3.5" step="0.5" min="0"></label>
+          <label class="p-sub">Cb (1.0&ndash;3.0)<input type="number" id="dCb" class="route-sel" value="1.0" step="0.05" min="1" max="3"></label>
+        </div>
+        <select id="latMode" class="route-sel" style="margin-top:8px">
+          <option value="unbraced" selected>Laterally unsupported (Lb = L)</option>
+          <option value="supported">Laterally supported (Lb = 0)</option>
+          <option value="custom">Custom Lb (use field above)</option>
+        </select>
+        <div class="p-sub">ASD reads M as service M<sub>a</sub>; LRFD as factored M<sub>u</sub> (service load taken as M<sub>u</sub>/1.5 for deflection). C<sub>b</sub> = 1.0 is uniform moment; 1.14 for a simply supported UDL span. References are calibrated at these defaults (unsupported).</div>
+      </div>
+      {% endif %}
+<div class="adv-body" id="advBody">
+        <div class="field">
+          <label>Mutation rate <span class="val" id="mutVal">0.15</span></label>
+          <input type="range" id="mut" min="0.02" max="0.5" step="0.01" value="0.15">
+        </div>
+        <div class="field">
+          <label>Crossover rate <span class="val" id="cxVal">0.70</span></label>
+          <input type="range" id="cx" min="0.3" max="0.95" step="0.05" value="0.70">
+        </div>
+        <div class="field">
+          <label>Random seed <span class="val" id="seedVal">auto</span></label>
+          <input type="range" id="seed" min="0" max="100" step="1" value="0">
+          <div class="hint">0 = random each run; >0 = reproducible.</div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="runBtn">▶ Optimize</button>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="cancelBtn" style="display:none">Stop</button>
+      </div>
+
+      <!-- progress -->
+      <div class="progress-wrap" id="progWrap">
+        <div class="progress-meta">
+          <span><span class="dotpulse"></span>Optimizing</span>
+          <span class="pct" id="pctTxt">0%</span>
+        </div>
+        <div class="bar"><div class="fill" id="barFill"></div></div>
+        <div class="progress-stat">
+          <span>Gen <span id="genNow">0</span>/<span id="genTot">0</span></span>
+          <span>Best <b id="bestNow">—</b></span>
+        </div>
+      </div>
+
+      <!-- post-run controls -->
+      <div id="postCtrl" style="display:none">
+        <div class="btn-row" style="margin-top:18px">
+          <button class="btn btn-primary" id="rerunBtn" style="font-size:.85rem;padding:11px">↻ Run again</button>
+        </div>
+        <button class="btn btn-ghost" id="clearBtn">Clear &amp; choose another</button>
+      </div>
+    </div>
+
+    <!-- ============ viewer ============ -->
+    <div class="viewer">
+      <div class="view-tabs" id="viewTabs" style="display:none">
+        <label class="chk active"><input type="checkbox" data-view="results" checked><span class="box"></span>Results</label>
+        <label class="chk active"><input type="checkbox" data-view="fitness" checked><span class="box"></span>Fitness curve</label>
+        <label class="chk active"><input type="checkbox" data-view="model" checked><span class="box"></span>3D model</label>
+        <label class="chk active"><input type="checkbox" data-view="sections" checked><span class="box"></span>Sections</label>
+      </div>
+
+      <div id="emptyState" class="empty-state">
+        <div class="ico">◇</div>
+        <h3>Ready to optimize</h3>
+        <p>Set the chromosome count and number of generations, then press
+           <strong style="color:var(--amber)">Optimize</strong>.
+           The convergence curve, extruded 3D model and section schedule appear here.</p>
+      </div>
+
+      <div id="views"></div>
+    </div>
+  </div>
+</div>
+
+<footer class="foot">
+  {% if meta.family == 'member' %}{{ meta.name }} &nbsp;·&nbsp; 4 plate variables · {{ meta.n_con }} AISC checks{% elif meta.family == 'co2' %}{{ meta.name }} &nbsp;·&nbsp; {{ meta.n_vars }} design variables · {{ meta.n_con }} constraints &nbsp;·&nbsp; BEDEC emission factors{% else %}{{ meta.name }} &nbsp;·&nbsp; {{ meta.members }} members · {{ meta.nodes }} nodes
+  &nbsp;·&nbsp; {{ meta.n_vars }} design variables{% endif %}
+</footer>
+
+<script src="{{ url_for('static', filename='three.min.js') }}"></script>
+<script id="meta" type="application/json">{{ meta | tojson }}</script>
+<script src="{{ url_for('static', filename='workspace.js') }}"></script>
+</body>
+</html>

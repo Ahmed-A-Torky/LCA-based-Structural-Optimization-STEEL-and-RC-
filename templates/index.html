@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Structural Optimization Studio</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="topbar">
+  <a class="brand" href="/">
+    <span class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#f4a43c" stroke-width="1.6">
+        <path d="M3 21 L12 3 L21 21 Z" stroke-linejoin="round"/>
+        <path d="M3 21 L12 12 L21 21" stroke-opacity="0.5"/>
+        <path d="M12 3 L12 12" stroke-opacity="0.5"/>
+      </svg>
+    </span>
+    <span class="tt"><b>Optimization Studio</b><span>Structural&nbsp;Benchmarks</span></span>
+  </a>
+  <div class="meta">
+    Benchmark suite<br><b>15 problems</b> · GA · FE + RC design
+  </div>
+</div>
+
+<div class="wrap">
+  <section class="hero">
+    <div class="eyebrow">Genetic-algorithm structural optimization</div>
+    <h1>Fifteen benchmarks, <em>one</em> optimization workbench.</h1>
+    <p class="lead">Pick a structure, set the genetic-algorithm parameters, and watch it
+      optimize live. Inspect the convergence curve, the extruded 3D model, the chosen
+      member sections and the full constraint report — all in one place.</p>
+    <div class="stats">
+      <div class="s"><b>15</b><span>Benchmarks</span></div>
+      <div class="s"><b>6</b><span>Static</span></div>
+      <div class="s"><b>3</b><span>Frequency</span></div>
+      <div class="s"><b>4</b><span>RC · CO&#8322;</span></div>
+    </div>
+  </section>
+
+  <div class="sec-label">
+    <h2>Static — stress &amp; displacement</h2>
+    <span class="rule"></span>
+    <span class="tag">KU = P</span>
+  </div>
+  <div class="grid" id="static-grid"></div>
+
+  <div class="sec-label">
+    <h2>Dynamic — natural frequency</h2>
+    <span class="rule"></span>
+    <span class="tag">eigen(K, M)</span>
+  </div>
+  <div class="grid" id="freq-grid"></div>
+
+  <div class="sec-label">
+    <h2>Reinforced concrete — CO&#8322; objective</h2>
+    <span class="rule"></span>
+    <span class="tag">min CO&#8322;</span>
+  </div>
+  <div class="grid" id="co2-grid"></div>
+</div>
+
+<footer class="foot">
+  Reproducing Sedaghati (2005), <em>Int. J. Solids &amp; Structures</em> 42, 5848–5871
+  &nbsp;·&nbsp; Python · Flask · NumPy/SciPy · three.js
+</footer>
+
+<script id="data" type="application/json">{{ problems | tojson }}</script>
+<script>
+const PROBLEMS = JSON.parse(document.getElementById('data').textContent);
+
+function card(p, idx){
+  const a = document.createElement('a');
+  a.className = 'card';
+  a.href = '/problem/' + p.key;
+  a.style.animationDelay = (idx*70) + 'ms';
+  const isCO2 = p.family === 'co2';
+  const badge = isCO2 ? 'CO&#8322;' : (p.family === 'static' ? 'Static' : (p.family === 'member' ? 'AISC' : 'Frequency'));
+  const stats = (isCO2 || p.family === 'member')
+    ? `<div class="st"><b>${p.n_vars}</b><span>Variables</span></div>
+       <div class="st"><b>${p.n_con}</b><span>Constraints</span></div>
+       <div class="st"><b>${p.ref_mass}</b><span>Ref ${p.unit}</span></div>`
+    : `<div class="st"><b>${p.members}</b><span>Members</span></div>
+       <div class="st"><b>${p.nodes}</b><span>Nodes</span></div>
+       <div class="st"><b>${p.ref_mass}</b><span>Ref ${p.unit}</span></div>`;
+  a.innerHTML = `
+    <div class="thumb">
+      <span class="badge ${p.family}">${badge}</span>
+      <span class="nvars">${p.n_vars} vars</span>
+      ${p.thumb}
+    </div>
+    <div class="body">
+      <h3>${p.name}</h3>
+      <div class="kind">${p.kind}</div>
+      <p>${p.blurb}</p>
+      <div class="stats-row">${stats}</div>
+      <div class="go"><span>Open workspace</span><span class="arrow">→</span></div>
+    </div>`;
+  return a;
+}
+
+const sg = document.getElementById('static-grid');
+const fg = document.getElementById('freq-grid');
+const cg = document.getElementById('co2-grid');
+let si=0, fi=0, ci=0;
+PROBLEMS.forEach(p => {
+  if(p.family === 'static') sg.appendChild(card(p, si++));
+  else if(p.family === 'frequency') fg.appendChild(card(p, fi++));
+  else cg.appendChild(card(p, ci++));
+});
+</script>
+</body>
+</html>

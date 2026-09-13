@@ -1,0 +1,10 @@
+flask>=3.0
+numpy>=1.26
+scipy>=1.11
+gunicorn>=21.2
+# studies / documentation (optional)
+matplotlib>=3.8
+reportlab>=4.0
+pillow>=10.0
+# tests
+pytest>=8.0
