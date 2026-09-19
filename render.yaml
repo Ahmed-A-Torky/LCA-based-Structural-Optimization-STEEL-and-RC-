@@ -8,6 +8,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --workers 1 --threads 8 --timeout 180 --bind 0.0.0.0:$PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.4"
       # Allow your Wix site to embed this app in an iframe.
       # Replace with your real Wix domain, or use "*" to allow any site.
       - key: EMBED_ALLOW

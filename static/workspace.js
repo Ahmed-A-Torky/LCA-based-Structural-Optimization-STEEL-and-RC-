@@ -1,3 +1,14 @@
+// ---- theme + amplitude colour scale (shared by every bar and chart) ----
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function isLight(){ return document.documentElement.getAttribute('data-theme') === 'light'; }
+function ampColor(t){                       // 0 -> teal, 1 -> amber, >1 -> red
+  const u = Math.max(0, Math.min(1.2, t));
+  const h = u >= 1 ? 0 : 170 - 130*u;
+  return `hsl(${h.toFixed(0)} 72% ${isLight() ? '42%' : '55%'})`;
+}
+function ampLegend(left, right){
+  return `<div class="amp-legend"><span>${left}</span><span class="grad"></span><span>${right}</span></div>`;
+}
 /* ============================================================
    workspace.js — optimization control, polling, and all views
    ============================================================ */
@@ -44,6 +55,7 @@ function gaParams(){
   const seed = +document.getElementById('seed').value;
   const routeEl = document.getElementById('steelRoute');
   let extra = routeEl ? {steel_route: routeEl.value} : {};
+  const mSel = document.getElementById('matSel'); if(mSel) extra.material = mSel.value;
   const dM = document.getElementById('dM');
   if(dM){
     extra.design = {M_kNm:+dM.value, L_m:+document.getElementById('dL').value,
@@ -110,6 +122,7 @@ async function poll(nGen){
 
 function setProgress(gen, tot, pct, best, feasible, f1){
   document.getElementById('barFill').style.width = Math.min(100, pct) + '%';
+  document.getElementById('barFill').style.background = ampColor(Math.min(100, pct)/100);
   document.getElementById('pctTxt').textContent = Math.round(Math.min(100,pct)) + '%';
   document.getElementById('genNow').textContent = gen;
   const b = document.getElementById('bestNow');
@@ -164,10 +177,12 @@ function renderViews(){
   host.innerHTML = '';
   if(want.includes('results'))  host.appendChild(viewResults());
   if(want.includes('fitness'))  host.appendChild(viewFitness());
+  if(want.includes('fitness') && CURRENT.scatter && CURRENT.scatter.length) host.appendChild(viewScatter());
   if(want.includes('model'))    host.appendChild(viewModel());
   if(want.includes('sections')) host.appendChild(viewSections());
 
   if(want.includes('fitness')) drawFitness();
+  if(want.includes('fitness') && CURRENT.scatter && CURRENT.scatter.length) drawScatter();
   if(want.includes('model'))   initThree();
 }
 
@@ -221,14 +236,23 @@ function viewResults(){
   }
   wrap.appendChild(grid);
   if(ev.carbon){
-    const c = ev.carbon;
-    const parts = Object.entries(c.breakdown).map(([k,v])=>`${k} <b>${v.toFixed(0)}</b>`).join(' \u00b7 ');
-    const cn = document.createElement('div'); cn.className = 'note';
-    cn.innerHTML = `<b>Embodied carbon: ${c.total.toFixed(1)} kg CO\u2082</b> \u2014 ${parts}.
-      ${c.material === 'rebar' ? 'Objective is CO\u2082; concrete 224.94 kg/m\u00b3 (BEDEC), rebar'
-        : 'Objective is mass; carbon reported for ' + c.material + ' at'} <b>${c.factor.toFixed(2)} kg/kg</b>
-      (${c.route} route).`;
-    wrap.appendChild(cn);
+    const c = ev.carbon, bd = c.breakdown, tot = c.total || 1;
+    const cost = c.cost || null;
+    const rows = Object.entries(bd).map(([k,v]) => `<div class="cc-row"><span>${k}</span>
+        <div class="minibar"><i style="width:${(v/tot*100).toFixed(0)}%;background:${ampColor(v/tot)}"></i></div>
+        <span class="v">${v.toFixed(0)} kg · ${(v/tot*100).toFixed(0)}%</span></div>`).join('');
+    const crow = cost ? Object.entries(cost.breakdown).map(([k,v]) => `${k} ${v.toFixed(0)}`).join(' · ') : '';
+    const card = document.createElement('div'); card.className = 'carbon-card';
+    card.innerHTML = `<div class="cc-head"><span class="cc-lab">Embodied CO\u2082 (cradle to gate)</span>
+        <span class="cc-tot">${c.total.toFixed(1)} kg CO\u2082</span>
+        ${cost ? `<span class="cc-cost">\u2248 ${cost.total.toFixed(0)} \u20ac <span class="cc-lab">est. cost</span></span>` : ''}</div>
+      <div class="cc-rows">${rows}</div>
+      ${ampLegend('share of total', '100 %')}
+      <div class="cc-note">${c.material === 'rebar'
+        ? `Objective is CO\u2082. Concrete 224.94 kg/m\u00b3, formwork 2.24 kg/m\u00b2 (BEDEC); rebar <b>${c.factor.toFixed(2)} kg/kg</b> (${c.route} route).`
+        : `Objective is mass; carbon reported for <b>${c.material}</b> at <b>${c.factor.toFixed(2)} kg CO\u2082/kg</b> (${c.route} route).`}
+        ${cost ? ` Cost at indicative unit prices: ${crow} \u20ac.` : ''}</div>`;
+    wrap.appendChild(card);
   }
 
   // feasibility pill + constraint detail
@@ -258,18 +282,7 @@ function viewResults(){
     const bk = ev.breakdown;
     const parts = Object.keys(bk).map(k =>
       `${k.charAt(0).toUpperCase()+k.slice(1)} <b>${bk[k].toFixed(0)}</b>`).join(' \u00b7 ');
-    if(ev.breakdown){
-    const bnote = document.createElement('div');
-      bnote.className = 'note';
-      const rt = ev.steel_route, rf = ev.steel_co2_factor;
-      let steelTxt = rf != null
-        ? `steel <b>${rf.toFixed(2)} kg/kg</b> (${rt} route)` : 'steel 2.82 kg/kg';
-      bnote.innerHTML = `Emission breakdown (kg CO\u2082): ${parts}. Concrete 224.94 kg/m\u00b3
-        (BEDEC); ${steelTxt}.` + (rt && rt !== 'bedec'
-        ? ` <span style="color:var(--amber-soft)">Note: the studio reference was calibrated
-        with the default BEDEC route (2.82 kg/kg) \u2014 compare like-for-like runs.</span>` : '');
-      wrap.appendChild(bnote);
-    }
+    
   }
 
   // Plain-language interpretation of the delta vs the published reference.
@@ -382,6 +395,54 @@ function viewFitness(){
   wrap.appendChild(lg);
   return block('Convergence', 'best ' + objWord + ' per generation', wrap);
 }
+
+function viewScatter(){
+  const wrap = document.createElement('div');
+  const cv = document.createElement('canvas'); cv.id = 'scatCanvas'; wrap.appendChild(cv);
+  const lg = document.createElement('div'); lg.className = 'legend';
+  lg.innerHTML = `<span class="lg"><span class="sw" style="background:var(--cyan)"></span>feasible designs</span>
+     <span class="lg"><span class="sw" style="background:var(--fg-faint)"></span>infeasible</span>
+     <span class="lg"><span class="sw" style="background:var(--amber)"></span>Pareto front (cost vs CO\u2082)</span>
+     <span class="lg"><span class="sw" style="background:var(--green)"></span>optimum</span>`;
+  wrap.appendChild(lg);
+  return block('Cost vs CO\u2082 of evaluated designs', CURRENT.scatter.length + ' designs \u00b7 indicative unit prices', wrap);
+}
+function drawScatter(){
+  const cv = document.getElementById('scatCanvas'); if(!cv) return;
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = 300;
+  cv.width = W*dpr; cv.height = H*dpr; const x = cv.getContext('2d'); x.scale(dpr, dpr);
+  const pts = CURRENT.scatter, feas = pts.filter(p=>p[2]);
+  if(!feas.length) return;
+  const cs = feas.map(p=>p[0]), zs = feas.map(p=>p[1]);
+  const lo = [Math.min(...cs), Math.min(...zs)], hi = [Math.max(...cs), Math.max(...zs)];
+  const pad = {l:64, r:18, t:14, b:40}, pw = W-pad.l-pad.r, ph = H-pad.t-pad.b;
+  const X = v => pad.l + (v-lo[0])/((hi[0]-lo[0])||1)*pw, Y = v => pad.t + ph - (v-lo[1])/((hi[1]-lo[1])||1)*ph;
+  x.strokeStyle = cssVar('--grid'); x.lineWidth = 1; x.font = '11px ' + cssVar('--font-mono');
+  for(let k=0;k<=4;k++){
+    const gy = pad.t + ph*k/4, gv = hi[1] - (hi[1]-lo[1])*k/4;
+    x.beginPath(); x.moveTo(pad.l, gy); x.lineTo(W-pad.r, gy); x.stroke();
+    x.fillStyle = cssVar('--fg-faint'); x.textAlign = 'right'; x.textBaseline = 'middle'; x.fillText(gv.toFixed(0), pad.l-8, gy);
+    const gx = pad.l + pw*k/4, gc = lo[0] + (hi[0]-lo[0])*k/4;
+    x.textAlign = 'center'; x.textBaseline = 'top'; x.fillText(gc.toFixed(0), gx, pad.t+ph+6);
+  }
+  x.fillStyle = cssVar('--fg-faint'); x.textAlign = 'center'; x.fillText('cost (\u20ac)', pad.l + pw/2, H-12);
+  x.save(); x.translate(14, pad.t + ph/2); x.rotate(-Math.PI/2); x.fillText('CO\u2082 (kg)', 0, 0); x.restore();
+  const inf = pts.filter(p=>!p[2]);
+  x.fillStyle = cssVar('--fg-faint'); x.globalAlpha = 0.18;
+  inf.forEach(p => { if(p[0]>=lo[0]&&p[0]<=hi[0]&&p[1]>=lo[1]&&p[1]<=hi[1]){ x.beginPath(); x.arc(X(p[0]), Y(p[1]), 1.6, 0, 6.283); x.fill(); } });
+  x.globalAlpha = 0.55; x.fillStyle = cssVar('--cyan');
+  feas.forEach(p => { x.beginPath(); x.arc(X(p[0]), Y(p[1]), 2.2, 0, 6.283); x.fill(); });
+  x.globalAlpha = 1;
+  const srt = feas.slice().sort((a,b)=>a[0]-b[0]); let best = Infinity; const front = [];
+  srt.forEach(p => { if(p[1] < best){ best = p[1]; front.push(p); } });
+  x.strokeStyle = cssVar('--amber'); x.lineWidth = 2; x.beginPath();
+  front.forEach((p,i) => { i ? x.lineTo(X(p[0]), Y(p[1])) : x.moveTo(X(p[0]), Y(p[1])); }); x.stroke();
+  x.fillStyle = cssVar('--amber'); front.forEach(p => { x.beginPath(); x.arc(X(p[0]), Y(p[1]), 3.2, 0, 6.283); x.fill(); });
+  const ev = CURRENT.evaluation, c = ev.carbon || {};
+  if(c.cost){ x.fillStyle = cssVar('--green'); x.beginPath(); x.arc(X(c.cost.total), Y(ev.mass), 6, 0, 6.283); x.fill();
+    x.strokeStyle = cssVar('--fg'); x.lineWidth = 1.5; x.stroke(); }
+}
+
 function drawFitness(){
   const c = document.getElementById('fitCanvas'); if(!c) return;
   const dpr = window.devicePixelRatio || 1;
@@ -410,13 +471,13 @@ function drawFitness(){
   x.font = '11px "IBM Plex Mono"'; x.textBaseline='middle';
   for(let k=0;k<=4;k++){
     const v = lo+(hi-lo)*k/4, yy = Y(v);
-    x.strokeStyle = 'rgba(35,52,79,.6)'; x.lineWidth=1;
+    x.strokeStyle = cssVar('--grid'); x.lineWidth=1;
     x.beginPath(); x.moveTo(pad.l,yy); x.lineTo(W-pad.r,yy); x.stroke();
-    x.fillStyle = '#64758f'; x.textAlign='right';
+    x.fillStyle = cssVar('--fg-faint'); x.textAlign='right';
     x.fillText(v.toFixed((hi-lo) < 20 ? 2 : 0), pad.l-10, yy);
   }
   // x axis label
-  x.fillStyle='#64758f'; x.textAlign='center'; x.textBaseline='top';
+  x.fillStyle=cssVar('--fg-faint'); x.textAlign='center'; x.textBaseline='top';
   x.fillText('generation', pad.l+plotW/2, H-16);
 
   // reference: frequency target line + tolerance band, or mass reference line
@@ -427,19 +488,19 @@ function drawFitness(){
     x.strokeStyle = 'rgba(244,164,60,.55)'; x.setLineDash([3,4]); x.lineWidth=1;
     x.beginPath(); x.moveTo(pad.l,yU); x.lineTo(W-pad.r,yU); x.stroke();
     x.beginPath(); x.moveTo(pad.l,yL); x.lineTo(W-pad.r,yL); x.stroke();
-    x.strokeStyle = '#f4a43c'; x.setLineDash([6,4]); x.lineWidth=1.6;
+    x.strokeStyle = cssVar('--amber'); x.setLineDash([6,4]); x.lineWidth=1.6;
     x.beginPath(); x.moveTo(pad.l,yT); x.lineTo(W-pad.r,yT); x.stroke();
     x.setLineDash([]);
-    x.fillStyle = '#f4a43c'; x.textAlign='left'; x.textBaseline='bottom';
+    x.fillStyle = cssVar('--amber'); x.textAlign='left'; x.textBaseline='bottom';
     x.fillText('target ' + ft.value + ' ' + ft.unit, pad.l+6, yT-3);
   } else {
-    x.strokeStyle = '#f4a43c'; x.setLineDash([5,4]); x.lineWidth=1.5;
+    x.strokeStyle = cssVar('--amber'); x.setLineDash([5,4]); x.lineWidth=1.5;
     x.beginPath(); x.moveTo(pad.l, Y(ref)); x.lineTo(W-pad.r, Y(ref)); x.stroke();
     x.setLineDash([]);
   }
 
   // best-mass line (skip nulls / leading infeasible)
-  x.strokeStyle = '#46c8d6'; x.lineWidth=2.4; x.lineJoin='round';
+  x.strokeStyle = cssVar('--cyan'); x.lineWidth=2.4; x.lineJoin='round';
   x.beginPath(); let started=false;
   hist.forEach((v,i)=>{ if(v==null) return;
     const px=X(i), py=Y(v);
@@ -456,8 +517,8 @@ function drawFitness(){
   // final point
   const lastI = hist.length-1, lastV = hist[lastI];
   if(lastV!=null){
-    x.fillStyle='#46c8d6'; x.beginPath(); x.arc(X(lastI),Y(lastV),4.5,0,7); x.fill();
-    x.fillStyle='#e8eef7'; x.textAlign='right'; x.textBaseline='bottom';
+    x.fillStyle=cssVar('--cyan'); x.beginPath(); x.arc(X(lastI),Y(lastV),4.5,0,7); x.fill();
+    x.fillStyle=cssVar('--fg'); x.textAlign='right'; x.textBaseline='bottom';
     const lastTxt = isFreqChart ? ('f'+ft.mode+' = '+lastV.toFixed(2)+' '+ft.unit)
                                 : (lastV.toFixed(1)+' '+META.unit);
     x.fillText(lastTxt, W-pad.r, Y(lastV)-8);
@@ -499,9 +560,9 @@ function viewSections(){
       const util = b.limit ? Math.abs(b.sigma)/b.limit : 0;
       const cls = b.viol ? 'viol' : '';
       rows += `<td class="${cls}">${b.sigma.toFixed(1)} / ${b.limit.toFixed(0)} ${b.unit ?? 'MPa'}</td>`;
-      rows += `<td class="barcell" style="min-width:120px"><div class="minibar"><i style="width:${Math.min(100,util*100).toFixed(0)}%;${b.viol?'background:var(--danger)':''}"></i></div></td>`;
+      rows += `<td class="barcell" style="min-width:120px"><div class="minibar"><i style="width:${Math.min(100,util*100).toFixed(0)}%;background:${ampColor(util)}"></i></div></td>`;
     } else {
-      rows += `<td class="barcell" style="min-width:140px"><div class="minibar"><i style="width:${(b.area/amax*100).toFixed(0)}%"></i></div></td>`;
+      rows += `<td class="barcell" style="min-width:140px"><div class="minibar"><i style="width:${(b.area/amax*100).toFixed(0)}%;background:${ampColor(b.area/amax)}"></i></div></td>`;
     }
     rows += `</tr>`;
   });
@@ -510,7 +571,7 @@ function viewSections(){
 
   if(!isFreq){
     const lg = document.createElement('div'); lg.className='legend';
-    lg.innerHTML = `<span class="lg"><span class="sw" style="background:linear-gradient(90deg,var(--cyan),var(--amber))"></span>Utilisation (|σ|/limit)</span>
+    lg.innerHTML = ampLegend('0 %', '100 % of limit · red = exceeded') + `<span class="lg">Utilisation (|σ|/limit)</span>
       <span class="lg"><span class="sw" style="background:var(--danger)"></span>Constraint violated</span>`;
     wrap.appendChild(lg);
   }
@@ -548,7 +609,7 @@ function viewSectionsRC(ev){
       <td>${c.demand.toFixed(2)} ${c.unit}</td>
       <td>${c.capacity.toFixed(2)} ${c.unit}</td>
       <td class="${cls}">${u.toFixed(0)}%</td>
-      <td class="barcell"><div class="minibar"><i style="width:${Math.min(100,u).toFixed(0)}%;${c.ok?'':'background:var(--danger)'}"></i></div></td>
+      <td class="barcell"><div class="minibar"><i style="width:${Math.min(100,u).toFixed(0)}%;background:${ampColor(u/100)}"></i></div></td>
     </tr>`;
   });
   t2.innerHTML = r2;
@@ -563,6 +624,7 @@ function viewSectionsRC(ev){
     wrap.appendChild(note);
   }
   const nCon = (ev.constraints||[]).length;
+  const lgc = document.createElement('div'); lgc.innerHTML = ampLegend('0 %', '100 % of capacity · red = exceeded'); wrap.appendChild(lgc);
   if(ev.details && ev.details.length){
     const t3 = document.createElement('table'); t3.className='tbl'; t3.style.marginTop='18px';
     let r3 = `<tr><th>Section property / design detail</th><th>Value</th><th>Unit</th></tr>`;
@@ -902,3 +964,5 @@ window.addEventListener('resize', ()=>{
   }
   if(CURRENT && activeViews().includes('fitness')) drawFitness();
 });
+
+window.addEventListener('themechange', () => { if(typeof CURRENT !== 'undefined' && CURRENT) renderViews(); });

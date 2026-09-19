@@ -6,11 +6,12 @@
 <title>Structural Optimization Studio</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script>(function(){try{if(localStorage.getItem('sos-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 </head>
 <body>
 
 <div class="topbar">
-  <a class="brand" href="/">
+  <div class="brand-wrap"><a class="brand" href="/">
     <span class="mark">
       <svg viewBox="0 0 24 24" fill="none" stroke="#f4a43c" stroke-width="1.6">
         <path d="M3 21 L12 3 L21 21 Z" stroke-linejoin="round"/>
@@ -18,8 +19,10 @@
         <path d="M12 3 L12 12" stroke-opacity="0.5"/>
       </svg>
     </span>
-    <span class="tt"><b>Optimization Studio</b><span>Structural&nbsp;Benchmarks (Created by Ahmed A. Torky)</span></span>
+    <span class="tt"><b>Optimization Studio</b><span>Structural&nbsp;Benchmarks</span></span>
   </a>
+  <div class="byline">Created by <a href="https://www.linkedin.com/in/ahmed-a-torky/" target="_blank" rel="noopener noreferrer">Ahmed A. Torky</a></div></div>
+  <button id="themeBtn" class="theme-btn" type="button" title="Switch light / dark theme">◐ theme</button>
   <div class="meta">
     Benchmark suite<br><b>15 problems</b> · GA · FE + RC design
   </div>
@@ -66,7 +69,7 @@
   This website is experimental — created by
   <a href="https://www.linkedin.com/in/ahmed-a-torky/" target="_blank" rel="noopener noreferrer"
      style="color:var(--cyan-soft);text-decoration:none;border-bottom:1px dotted currentColor">Ahmed A. Torky</a>
-  &nbsp;·&nbsp;<br> Benchmarks after Sedaghati (2005), <em>Int. J. Solids &amp; Structures</em> 42, 5848–5871,
+  &nbsp;·&nbsp; Benchmarks after Sedaghati (2005), <em>Int. J. Solids &amp; Structures</em> 42, 5848–5871,
   Pezeshk et al. (2000) and the RC CO&#8322;-optimization literature
   &nbsp;·&nbsp; Python · Flask · NumPy/SciPy · three.js
 </footer>
@@ -115,5 +118,6 @@ PROBLEMS.forEach(p => {
   else cg.appendChild(card(p, ci++));
 });
 </script>
+<script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.addEventListener('click',function(){var r=document.documentElement;var light=r.getAttribute('data-theme')==='light';if(light)r.removeAttribute('data-theme');else r.setAttribute('data-theme','light');try{localStorage.setItem('sos-theme',light?'dark':'light');}catch(e){}window.dispatchEvent(new Event('themechange'));});})();</script>
 </body>
 </html>

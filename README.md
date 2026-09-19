@@ -21,6 +21,7 @@ It is built first as a **capacity-building tool**: students watch a constrained 
 - **Constraint handling built from the engineering target** — frequency-constrained problems rank infeasible designs by their frequency error, which recovered a benchmark previously misreported as unattainable.
 - **Verified** — 43 pytest checks pin closed-form anchors, published designs, code-classification behaviour and a whole-suite smoke run.
 - **Reproducible** — every figure and table in the documentation and manuscript regenerates from `studies/` with fixed seeds.
+- **Workspace** — light and dark themes; a selectable metal (benchmark, aluminium, steel) for the truss and frame problems; an embodied-carbon card with per-material breakdown and an indicative cost estimate at the top of every result; amplitude-scaled utilisation bars with a shared legend; and a cost versus CO₂ scatter of all evaluated designs for the RC problems.
 
 ## The benchmark library
 
@@ -41,9 +42,10 @@ References are published optima for the classic steel problems and multi-seed st
 ## Quick start
 
 ```bash
-pip install -r requirements.txt
-python app.py                  # open http://127.0.0.1:5000
-python -m pytest -q tests      # 43 verification tests, ~10 s
+pip install -r requirements.txt        # runtime only
+python app.py                          # open http://127.0.0.1:5000
+pip install -r requirements-dev.txt    # tests, studies, documentation
+python -m pytest -q tests              # 46 verification tests, ~11 s
 ```
 
 Pick a benchmark card, set the population and generations, optionally edit the design inputs (moment, span, F_y, bracing, C_b) or the material production route, and press **Optimize**. The workspace streams convergence live, then shows the governing check, constraint utilisation, section properties, a 3-D model with translucent concrete and reinforcement cages, the embodied-carbon breakdown and a JSON export.
@@ -86,7 +88,7 @@ See `DEPLOY_TO_WIX.md` for the step-by-step version.
 
 ## Citation
 
-If you use the studio, please cite the accompanying manuscript: *Interactive Genetic-Algorithm Optimization of Steel and Reinforced Concrete Structures for Minimum Weight and Embodied Carbon* (2026). Author details are in the manuscript in `docs/`.
+If you use the studio, please cite the accompanying manuscript: *Interactive Genetic-Algorithm Optimization of Steel and Reinforced Concrete Structures for Minimum Weight and Embodied Carbon* (2026). Created by Ahmed A. Torky (https://www.linkedin.com/in/ahmed-a-torky/); the website is experimental.
 
 ## License
 

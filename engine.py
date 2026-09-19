@@ -428,6 +428,14 @@ class Problem:
         raise NotImplementedError
     material = "steel"            # "steel" | "aluminium" | "rebar" (RC problems)
     _route = None
+    material_choice = "benchmark"
+    def set_material(self, kind):
+        """Switch the metal of a truss / frame / frequency benchmark."""
+        if kind not in MATERIALS or kind == "benchmark": return
+        if self.family not in ("static", "frequency") or self.key == "mrf3": return
+        if not (hasattr(self, "E") and hasattr(self, "rho")): return
+        self.E = MATERIALS[kind]["E"]; self.rho = MATERIALS[kind]["rho"]
+        self.material = kind; self.material_choice = kind; self._route = None
     @property
     def steel_route(self):
         return self._route or MATERIAL_DEFAULT[self.material]
@@ -460,22 +468,40 @@ class Problem:
             return ev
         if "breakdown" in ev:                      # RC: objective already CO2
             bd = dict(ev["breakdown"])
+            ctot, cbd = _rc_cost(ev.get("quantities") or {})
             ev["carbon"] = {"total": float(ev["mass"]), "breakdown": bd,
                             "material": "rebar", "route": self.steel_route,
-                            "factor": float(self.steel_co2), "unit": "kg CO2"}
+                            "factor": float(self.steel_co2), "unit": "kg CO2",
+                            "cost": {"total": ctot, "breakdown": cbd, "unit": "EUR"}}
             return ev
         f = float(self.steel_co2)
         parts = self._mass_by_role(ev, x)
         bd = {k: float(v*f) for k, v in parts.items()}
+        price = PRICES["aluminium"] if self.material == "aluminium" else PRICES["steel"]
         ev["carbon"] = {"total": float(sum(bd.values())), "breakdown": bd,
                         "material": self.material, "route": self.steel_route,
                         "factor": f, "unit": "kg CO2",
-                        "mass_breakdown_kg": {k: float(v) for k, v in parts.items()}}
+                        "mass_breakdown_kg": {k: float(v) for k, v in parts.items()},
+                        "cost": {"total": float(sum(parts.values())*price),
+                                 "breakdown": {k: float(v*price) for k, v in parts.items()},
+                                 "unit": "EUR", "price_per_kg": price}}
         return ev
     def evaluate_full(self, x):
         return self.carbon_report(self.evaluate(x), x)
+    def _record(self, r):
+        """Keep (cost, CO2, feasible) of evaluated RC designs (reservoir capped)."""
+        a = self.archive
+        cost, _ = _rc_cost(r.get("quantities") or {})
+        row = [round(cost, 2), round(float(r["mass"]), 2), bool(r["n_viol"] == 0)]
+        if len(a) < 6000: a.append(row)
+        else:
+            self._arch_n += 1
+            j = int(self._arch_rng.integers(0, self._arch_n))
+            if j < 6000: a[j] = row
     def objective(self, x):
         r = self.evaluate(x)
+        if hasattr(self, "archive") and r.get("ok"):
+            self._record(r)
         if not r["ok"]:
             return PENALTY
         if r["n_viol"] > 0:
@@ -1510,6 +1536,29 @@ ALU_ROUTES = {
                   note="ICE database secondary route"),
 }
 MATERIAL_ROUTES = {"steel": STEEL_ROUTES, "aluminium": ALU_ROUTES, "rebar": STEEL_ROUTES}
+
+# Selectable metal for the truss / frame / frequency benchmarks.  "benchmark"
+# keeps the published constants; the two named metals apply standard values
+# (allowable stresses and displacement limits are left as published).
+MATERIALS = {
+    "benchmark": dict(label="Benchmark material (as published)"),
+    "aluminium": dict(label="Aluminium 6061 T6 (E 68.9 GPa, rho 2700 kg/m3)", E=68900.0, rho=2.70e-6),
+    "steel":     dict(label="Structural steel (E 200 GPa, rho 7850 kg/m3)", E=200000.0, rho=7.85e-6),
+}
+# Indicative unit prices (EUR) used only for the cost estimate shown with every
+# result and for the cost versus CO2 scatter of the RC problems.
+PRICES = {"steel": 2.0, "aluminium": 4.5, "rebar": 1.30, "concrete": 90.0,
+          "formwork": 25.0, "excavation": 12.0}
+
+
+def _rc_cost(q):
+    """Cost estimate (EUR) from RC quantities; returns (total, breakdown)."""
+    bd = {"concrete": q.get("concrete_m3", 0.0)*PRICES["concrete"],
+          "steel": q.get("steel_kg", 0.0)*PRICES["rebar"],
+          "formwork": q.get("formwork_m2", 0.0)*PRICES["formwork"]}
+    for k, v in q.items():
+        if "excav" in k: bd["excavation"] = v*PRICES["excavation"]
+    return float(sum(bd.values())), {k: float(v) for k, v in bd.items()}
 MATERIAL_DEFAULT = {"steel": "avg", "aluminium": "eu", "rebar": "bedec"}
 
 
@@ -1576,6 +1625,8 @@ class _RCProblem(Problem):
     def __init__(self):
         super().__init__()
         self.bounds = (0.0, 1.0)
+        self.archive = []; self._arch_n = 6000
+        self._arch_rng = np.random.default_rng(7)
     def _phys(self, x):
         x = np.clip(np.asarray(x, float), 0.0, 1.0)
         return [lo + xi * (hi - lo) for xi, (nm, lo, hi, un) in zip(x, self.var_defs)]

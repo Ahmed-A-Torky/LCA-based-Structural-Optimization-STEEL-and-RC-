@@ -79,8 +79,10 @@ def problem_page(key):
     p0 = E.PROBLEMS[key]()
     routes = E.routes_for(p0.material)
     m["material"] = p0.material
+    metal_ok = m.get("family") in ("static", "frequency") and key != "mrf3"
     return render_template("problem.html", meta=m, steel_routes=routes,
-                           default_route=p0.steel_route)
+                           default_route=p0.steel_route,
+                           materials=(E.MATERIALS if metal_ok else None))
 
 
 @app.route("/api/problems")
@@ -105,6 +107,8 @@ def api_problem(key):
 
 def _run_job(job_id, key, params):
     p = E.PROBLEMS[key]()
+    if params.get("material"):
+        p.set_material(str(params["material"]))
     if hasattr(p, "set_steel_route") and params.get("steel_route"):
         p.set_steel_route(str(params["steel_route"]))
     di = params.get("design") or {}
@@ -160,6 +164,8 @@ def _run_job(job_id, key, params):
             "history": res["history"],
             "history_feasible": res["history_feasible"],
             "freq_history": res.get("freq_history"),
+            "scatter": list(getattr(p, "archive", []) or []),
+            "material": getattr(p, "material_choice", "benchmark"),
             "freq_target": freq_target,
             "evaluations": res["evaluations"],
             "evaluation": ev,

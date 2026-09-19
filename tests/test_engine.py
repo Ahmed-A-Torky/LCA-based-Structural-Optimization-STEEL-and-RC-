@@ -142,3 +142,23 @@ def test_every_problem_reports_carbon_total_and_breakdown(key):
     c = ev["carbon"]
     assert c["total"] > 0 and abs(sum(c["breakdown"].values()) - c["total"]) < 1e-6
     assert c["material"] in ("steel", "aluminium", "rebar") and c["factor"] > 0
+
+
+def test_material_switch_changes_stiffness_density_and_carbon_material():
+    p = E.PROBLEMS["10bar"](); E0, r0 = p.E, p.rho
+    p.set_material("steel")
+    assert p.E == 200000.0 and p.rho == 7.85e-6 and p.material == "steel" and (E0, r0) != (p.E, p.rho)
+    assert E.PROBLEMS["mrf3"]().set_material("aluminium") is None      # catalogue frame stays steel
+
+
+def test_every_result_carries_cost_estimate():
+    for key in ("10bar", "rc_beam", "lrfd_beam"):
+        p = E.PROBLEMS[key](); lo, hi = p.bounds
+        c = p.evaluate_full([lo + 0.6*(hi-lo)]*p.n_vars)["carbon"]["cost"]
+        assert c["total"] > 0 and abs(sum(c["breakdown"].values()) - c["total"]) < 1e-6
+
+
+def test_rc_archive_collects_cost_co2_pairs():
+    p = E.PROBLEMS["rc_column"]()
+    E.run_ga(p, pop_size=10, n_gen=3, seed=1)
+    assert len(p.archive) >= 30 and all(len(r) == 3 and r[0] > 0 and r[1] > 0 for r in p.archive)

@@ -6,11 +6,12 @@
 <title>{{ meta.name }} — Optimization Studio</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='fonts.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script>(function(){try{if(localStorage.getItem('sos-theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 </head>
 <body>
 
 <div class="topbar">
-  <a class="brand" href="/">
+  <div class="brand-wrap"><a class="brand" href="/">
     <span class="mark">
       <svg viewBox="0 0 24 24" fill="none" stroke="#f4a43c" stroke-width="1.6">
         <path d="M3 21 L12 3 L21 21 Z" stroke-linejoin="round"/>
@@ -20,6 +21,8 @@
     </span>
     <span class="tt"><b>Optimization Studio</b><span>Structural&nbsp;Benchmarks</span></span>
   </a>
+  <div class="byline">Created by <a href="https://www.linkedin.com/in/ahmed-a-torky/" target="_blank" rel="noopener noreferrer">Ahmed A. Torky</a></div></div>
+  <button id="themeBtn" class="theme-btn" type="button" title="Switch light / dark theme">◐ theme</button>
   <a class="back" href="/">← All benchmarks</a>
 </div>
 
@@ -55,7 +58,16 @@
       <button class="adv-toggle" id="advToggle">
         <span class="chev">▸</span> Advanced
       </button>
-            {% if steel_routes %}
+            {% if materials %}
+      <div class="param" style="margin-bottom:14px">
+        <div class="p-head"><label for="matSel">Material (metal)</label></div>
+        <select id="matSel" class="route-sel">
+          {% for mk, mv in materials.items() %}<option value="{{ mk }}">{{ mv.label }}</option>{% endfor %}
+        </select>
+        <div class="p-sub">Changes E and density; allowable stresses stay as published. Carbon routes follow the metal. References are calibrated for the benchmark material.</div>
+      </div>
+      {% endif %}
+      {% if steel_routes %}
       <div class="param" style="margin-bottom:14px">
         <div class="p-head"><label for="steelRoute">{{ "Aluminium" if meta.material == "aluminium" else "Steel" }} production route</label></div>
         <select id="steelRoute" class="route-sel">
@@ -158,5 +170,6 @@
 <script src="{{ url_for('static', filename='three.min.js') }}"></script>
 <script id="meta" type="application/json">{{ meta | tojson }}</script>
 <script src="{{ url_for('static', filename='workspace.js') }}"></script>
+<script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.addEventListener('click',function(){var r=document.documentElement;var light=r.getAttribute('data-theme')==='light';if(light)r.removeAttribute('data-theme');else r.setAttribute('data-theme','light');try{localStorage.setItem('sos-theme',light?'dark':'light');}catch(e){}window.dispatchEvent(new Event('themechange'));});})();</script>
 </body>
 </html>
