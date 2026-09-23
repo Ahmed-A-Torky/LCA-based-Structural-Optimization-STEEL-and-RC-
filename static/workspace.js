@@ -55,7 +55,8 @@ function gaParams(){
   const seed = +document.getElementById('seed').value;
   const routeEl = document.getElementById('steelRoute');
   let extra = routeEl ? {steel_route: routeEl.value} : {};
-  const mSel = document.getElementById('matSel'); if(mSel) extra.material = mSel.value;
+  const mSel = document.getElementById('matSel');
+  if(mSel){ const [mat, rt] = mSel.value.split('|'); extra.material = mat; if(rt) extra.steel_route = rt; }
   const dM = document.getElementById('dM');
   if(dM){
     extra.design = {M_kNm:+dM.value, L_m:+document.getElementById('dL').value,

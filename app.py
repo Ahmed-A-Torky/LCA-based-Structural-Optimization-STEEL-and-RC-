@@ -80,9 +80,20 @@ def problem_page(key):
     routes = E.routes_for(p0.material)
     m["material"] = p0.material
     metal_ok = m.get("family") in ("static", "frequency") and key != "mrf3"
+    material_options = None
+    if metal_ok:
+        material_options = []
+        groups = [("benchmark", "Benchmark material (as published)", p0.material)]
+        groups += [(k, v["label"], k) for k, v in E.MATERIALS.items() if k != "benchmark"]
+        for mkey, mlabel, rmat in groups:
+            opts = []
+            for rk, r in E.routes_for(rmat).items():
+                opts.append({"value": f"{mkey}|{rk}", "label": f"{r['label']} \u2014 {r['co2']} kg CO\u2082/kg",
+                             "selected": (mkey == "benchmark" and rk == p0.steel_route)})
+            material_options.append({"group": mlabel, "options": opts})
+        routes = None                                  # no second selector
     return render_template("problem.html", meta=m, steel_routes=routes,
-                           default_route=p0.steel_route,
-                           materials=(E.MATERIALS if metal_ok else None))
+                           default_route=p0.steel_route, material_options=material_options)
 
 
 @app.route("/api/problems")

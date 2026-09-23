@@ -58,13 +58,15 @@
       <button class="adv-toggle" id="advToggle">
         <span class="chev">▸</span> Advanced
       </button>
-            {% if materials %}
+            {% if material_options %}
       <div class="param" style="margin-bottom:14px">
-        <div class="p-head"><label for="matSel">Material (metal)</label></div>
+        <div class="p-head"><label for="matSel">Material &amp; production route</label></div>
         <select id="matSel" class="route-sel">
-          {% for mk, mv in materials.items() %}<option value="{{ mk }}">{{ mv.label }}</option>{% endfor %}
+          {% for g in material_options %}<optgroup label="{{ g.group }}">
+            {% for o in g.options %}<option value="{{ o.value }}" {% if o.selected %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </optgroup>{% endfor %}
         </select>
-        <div class="p-sub">Changes E and density; allowable stresses stay as published. Carbon routes follow the metal. References are calibrated for the benchmark material.</div>
+        <div class="p-sub">One choice sets the metal (E and density) and the carbon factor of its production route. Allowable stresses stay as published; references are calibrated for the benchmark material at its default route.</div>
       </div>
       {% endif %}
       {% if steel_routes %}
